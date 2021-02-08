@@ -113,9 +113,9 @@ def layout_point(final_pred, output_height, output_width, name="layout_point"):
 def layout_bbox(final_pred, output_height, output_width, name="layout_bbox"):
   with tf.variable_scope(name):
 
-    final_pred = tf.reshape(final_pred, [64, 9, 10])
+    final_pred = tf.reshape(final_pred, [64, 9, 9])
     bbox_reg = tf.slice(final_pred, [0, 0, 0], [-1, -1, 4])
-    cls_prob = tf.slice(final_pred, [0, 0, 4], [-1, -1, 6])
+    cls_prob = tf.slice(final_pred, [0, 0, 4], [-1, -1, 5])
 
     bbox_reg = tf.reshape(bbox_reg, [64, 9, 4])
 
@@ -147,7 +147,7 @@ def layout_bbox(final_pred, output_height, output_width, name="layout_bbox"):
 
     xy_max = tf.reduce_max(tf.concat([x1_line, x2_line, y1_line, y2_line], axis=-1), axis=-1, keep_dims=True)
 
-    spatial_prob = tf.multiply(tf.tile(xy_max, [1, 1, 1, 1, 6]), tf.reshape(cls_prob, [64, 9, 1, 1, 6]))
+    spatial_prob = tf.multiply(tf.tile(xy_max, [1, 1, 1, 1, 5]), tf.reshape(cls_prob, [64, 9, 1, 1, 5]))
     spatial_prob_max = tf.reduce_max(spatial_prob, axis=1, keep_dims=False)
 
     return spatial_prob_max

@@ -1,0 +1,8 @@
+*.pyc
+.vscode
+.DS_Store
+
+publaynet
+checkpoint/*
+samples/*
+data/*.npy

@@ -45,9 +45,9 @@ class LAYOUTGAN(object):
     self.g_bn_x2 = batch_norm(name='g_bn_x2')
     self.g_bn_x3 = batch_norm(name='g_bn_x3')
 
-
-    self.data_pre = np.load('./data/pre_data_cls.npy')
-    print "complete loading pre_dat.npy"
+    npy_path = './data/' + self.dataset_name + '_train.npy'
+    self.data_pre = np.load(npy_path)
+    print "complete loading " + npy_path
     print len(self.data_pre) 
 
     self.build_model()
@@ -55,12 +55,12 @@ class LAYOUTGAN(object):
 
   def build_model(self):
 
-    self.inputs = tf.placeholder(tf.float32, [self.batch_size, 128, 2], name='real_images')
-    self.z = tf.placeholder(tf.float32, [64, 128, 2], name='z')
+    self.inputs = tf.placeholder(tf.float32, [self.batch_size, 9, 9], name='real_images')
+    self.z = tf.placeholder(tf.float32, [64, 9, 5, 4], name='z')
 
     self.G = self.generator(self.z)
     self.D, self.D_logits = self.discriminator(self.inputs, reuse=False)
-    self.sampler = self.sampler(self.z)
+    self.G_sample = self.sampler(self.z)
     self.D_, self.D_logits_ = self.discriminator(self.G, reuse=True)
     
     def sigmoid_cross_entropy_with_logits(x, y):
@@ -96,7 +96,7 @@ class LAYOUTGAN(object):
     sample_inputs = np.array(sample).astype(np.float32)
     sample_inputs = sample_inputs * 28.0 / 27.0 
 
-    sample_z = np.random.normal(0.5, 0.15, (64, 128, 2))
+    sample_z = np.random.normal(0.5, 0.15, (64, 9, 5, 4))
   
     counter = 1
     start_time = time.time()
@@ -116,7 +116,7 @@ class LAYOUTGAN(object):
         batch_images = np.array(batch).astype(np.float32)
         batch_images = batch_images * 28.0 / 27.0 
 
-        batch_z = np.random.normal(0.5, 0.15, (64, 128, 2))
+        batch_z = np.random.normal(0.5, 0.15, (64, 9, 5, 4))
 
         # Update D network
         _ = self.sess.run([d_optim], feed_dict={ self.inputs: batch_images, self.z: batch_z})
@@ -135,26 +135,13 @@ class LAYOUTGAN(object):
             % (epoch, idx, batch_idxs, time.time()-start_time, lr.eval(), errD_fake+errD_real, errG))
 
         if np.mod(counter, 200) == 1:
-          samples, d_loss, g_loss = self.sess.run([self.sampler, self.d_loss, self.g_loss],
+          samples, d_loss, g_loss = self.sess.run([self.G_sample, self.d_loss, self.g_loss],
             feed_dict={self.z: sample_z, self.inputs: sample_inputs})
 
-          samples = np.reshape(samples, (64, 128, 2))
-          samples = 27.0 * samples
-          img_all = np.zeros((64, 28, 28, 3), dtype=np.uint8)
+          size = image_manifold_size(samples.shape[0])
+          path = './{}/train_{:02d}_{:04d}.jpg'.format(config.sample_dir, epoch, idx)
+          save_npy_img(samples, size, path)
 
-          for img_ind in range(64):
-            pointset = np.rint(samples[img_ind,:,:]).astype(np.int)
-            pointset = pointset[~(pointset==0).all(1)]
-           
-            img = np.zeros((28,28), dtype=np.float32)
-            img[pointset[:,0], pointset[:,1]] = 255
-            img = Image.fromarray(img.astype('uint8'), 'L')
-
-            img_all[img_ind, :, :, :] = np.array(img.convert('RGB'))
-
-          img_all = np.squeeze(merge(img_all, image_manifold_size(samples.shape[0])))
-
-          scipy.misc.imsave('./{}/train_{:02d}_{:04d}.jpg'.format(config.sample_dir, epoch, idx), img_all)
           print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss)) 
 
         if np.mod(counter, 2000) == 0:
@@ -166,9 +153,9 @@ class LAYOUTGAN(object):
       if reuse:
         scope.reuse_variables()
 
-      layout = layout_point(image, 28, 28, name='layout')
+      # layout = layout_point(image, 28, 28, name='layout')
       # For bbox layout generation
-      # layout = layout_bbox(image, 60, 40, name='layout')
+      layout = layout_bbox(image, 60, 40, name='layout')
 
       net = lrelu(self.d_bn0(conv2d(layout, 32, k_h=5, k_w=5, d_h=2, d_w=2, padding='VALID', name='conv1')))
       net = lrelu(self.d_bn1(conv2d(net, 64, k_h=5, k_w=5, d_h=2, d_w=2, padding='VALID', name='conv2')))
@@ -181,23 +168,23 @@ class LAYOUTGAN(object):
 
   def generator(self, z):
     with tf.variable_scope("generator") as scope:
-      gnet = tf.reshape(z, [64, 128, 1, 2])
-      h0_0 = self.g_bn0_0(conv2d(gnet, 1024, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_0'))
-      h0_1 = tf.nn.relu(self.g_bn0_1(conv2d(gnet, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_1')))
-      h0_2 = tf.nn.relu(self.g_bn0_2(conv2d(h0_1, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_2')))
-      h0_3 = self.g_bn0_3(conv2d(h0_2, 1024, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_3'))
-      gnet = tf.nn.relu(tf.add(h0_0, h0_3))
+      # gnet = tf.reshape(z, [64, 128, 1, 2])
+      # h0_0 = self.g_bn0_0(conv2d(gnet, 1024, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_0'))
+      # h0_1 = tf.nn.relu(self.g_bn0_1(conv2d(gnet, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_1')))
+      # h0_2 = tf.nn.relu(self.g_bn0_2(conv2d(h0_1, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_2')))
+      # h0_3 = self.g_bn0_3(conv2d(h0_2, 1024, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_3'))
+      # gnet = tf.nn.relu(tf.add(h0_0, h0_3))
 
       # For bbox layout generation
-      # gnet = tf.reshape(z, [64, 9, 6, 4])
-      # h0_0 = self.g_bn0_0(conv2d(gnet, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_0'))
-      # h0_1 = tf.nn.relu(self.g_bn0_1(conv2d(gnet, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_1')))
-      # h0_2 = tf.nn.relu(self.g_bn0_2(conv2d(h0_1, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_2')))
-      # h0_3 = self.g_bn0_3(conv2d(h0_2, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_3'))
-      # gnet = tf.nn.relu(tf.add(h0_0, h0_3))
-      # gnet = tf.reshape(gnet, [64, 9, 1, 6*256])
+      gnet = tf.reshape(z, [64, 9, 5, 4])
+      h0_0 = self.g_bn0_0(conv2d(gnet, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_0'))
+      h0_1 = tf.nn.relu(self.g_bn0_1(conv2d(gnet, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_1')))
+      h0_2 = tf.nn.relu(self.g_bn0_2(conv2d(h0_1, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_2')))
+      h0_3 = self.g_bn0_3(conv2d(h0_2, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_3'))
+      gnet = tf.nn.relu(tf.add(h0_0, h0_3))
+      gnet = tf.reshape(gnet, [64, 9, 1, 5*256])
 
-      gnet = tf.reshape(gnet, [64, 128, 1, 1024])
+      # gnet = tf.reshape(gnet, [64, 128, 1, 1024])
       gnet = tf.nn.relu(self.g_bn_x1( tf.add(gnet, self.g_bn_x0(relation_nonLocal(gnet, name='g_non0')))))
       gnet = tf.nn.relu(self.g_bn_x3( tf.add(gnet, self.g_bn_x2(relation_nonLocal(gnet, name='g_non2')))))
 
@@ -210,14 +197,14 @@ class LAYOUTGAN(object):
       # For bbox layout generation
       # May add more self-attention refinement steps
 
-      bbox_pred = conv2d(gnet, 2, k_h=1, k_w=1, d_h=1, d_w=1, name='bbox_pred')
-      bbox_pred = tf.sigmoid(tf.reshape(bbox_pred, [-1, 128, 2]))
-      final_pred = bbox_pred
+      bbox_pred = conv2d(gnet, 4, k_h=1, k_w=1, d_h=1, d_w=1, name='bbox_pred')
+      bbox_pred = tf.sigmoid(tf.reshape(bbox_pred, [-1, 9, 4]))
+      # final_pred = bbox_pred
 
       # For bbox layout generation 
-      # cls_score = conv2d(gnet, 6, k_h=1, k_w=1, d_h=1, d_w=1, name='cls_score')
-      # cls_prob  = tf.sigmoid(tf.reshape(cls_score, [-1, 9, 6]))
-      # final_pred = tf.concat([bbox_pred, cls_prob], axis=-1)
+      cls_score = conv2d(gnet, 5, k_h=1, k_w=1, d_h=1, d_w=1, name='cls_score')
+      cls_prob  = tf.sigmoid(tf.reshape(cls_score, [-1, 9, 5]))
+      final_pred = tf.concat([bbox_pred, cls_prob], axis=-1)
 
       return final_pred 
 
@@ -225,14 +212,15 @@ class LAYOUTGAN(object):
   def sampler(self, z):
     with tf.variable_scope("generator") as scope:
       scope.reuse_variables()
-      gnet = tf.reshape(z, [64, 128, 1, 2])
-      h0_0 = self.g_bn0_0(conv2d(gnet, 1024, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_0'), train=False)
-      h0_1 = tf.nn.relu(self.g_bn0_1(conv2d(gnet, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_1'), train=False))
-      h0_2 = tf.nn.relu(self.g_bn0_2(conv2d(h0_1, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_2'), train=False))
-      h0_3 = self.g_bn0_3(conv2d(h0_2, 1024, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_3'), train=False)
+      gnet = tf.reshape(z, [64, 9, 5, 4])
+      h0_0 = self.g_bn0_0(conv2d(gnet, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_0'))
+      h0_1 = tf.nn.relu(self.g_bn0_1(conv2d(gnet, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_1')))
+      h0_2 = tf.nn.relu(self.g_bn0_2(conv2d(h0_1, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_2')))
+      h0_3 = self.g_bn0_3(conv2d(h0_2, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_3'))
       gnet = tf.nn.relu(tf.add(h0_0, h0_3))
+      gnet = tf.reshape(gnet, [64, 9, 1, 5*256])
 
-      gnet = tf.reshape(gnet, [64, 128, 1, 1024])
+      # gnet = tf.reshape(gnet, [64, 128, 1, 1024])
       gnet = tf.nn.relu(self.g_bn_x1( tf.add(gnet, self.g_bn_x0(relation_nonLocal(gnet, name='g_non0'), train=False)), train=False))
       gnet = tf.nn.relu(self.g_bn_x3( tf.add(gnet, self.g_bn_x2(relation_nonLocal(gnet, name='g_non2'), train=False)), train=False))
 
@@ -242,11 +230,17 @@ class LAYOUTGAN(object):
       h1_3 = self.g_bn1_3(conv2d(h1_2, 1024, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h1_3'), train=False)
       gnet = tf.nn.relu(tf.add(h1_0, h1_3))
 
-      bbox_pred = conv2d(gnet, 2, k_h=1, k_w=1, d_h=1, d_w=1, name='bbox_pred')
-      bbox_pred = tf.sigmoid(tf.reshape(bbox_pred, [-1, 128, 2]))
-      final_pred = bbox_pred
+      bbox_pred = conv2d(gnet, 4, k_h=1, k_w=1, d_h=1, d_w=1, name='bbox_pred')
+      bbox_pred = tf.sigmoid(tf.reshape(bbox_pred, [-1, 9, 4]))
+      # final_pred = bbox_pred
 
-      return final_pred 
+      cls_score = conv2d(gnet, 5, k_h=1, k_w=1, d_h=1, d_w=1, name='cls_score')
+      cls_prob  = tf.sigmoid(tf.reshape(cls_score, [-1, 9, 5]))
+      final_pred = tf.concat([bbox_pred, cls_prob], axis=-1)
+
+      layout = layout_bbox(final_pred, 60, 40, name='layout')
+
+      return layout
 
 
   @property
