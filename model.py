@@ -94,7 +94,7 @@ class LAYOUTGAN(object):
     
     sample = self.data_pre[0:self.sample_num]
     sample_inputs = np.array(sample).astype(np.float32)
-    sample_inputs = sample_inputs * 28.0 / 27.0 
+    # sample_inputs = sample_inputs * 28.0 / 27.0 
 
     sample_z = np.random.normal(0.5, 0.15, (64, 9, 5, 4))
   
@@ -114,7 +114,7 @@ class LAYOUTGAN(object):
       for idx in xrange(0, batch_idxs):
         batch = self.data_pre[idx*config.batch_size:(idx+1)*config.batch_size]
         batch_images = np.array(batch).astype(np.float32)
-        batch_images = batch_images * 28.0 / 27.0 
+        # batch_images = batch_images * 28.0 / 27.0 
 
         batch_z = np.random.normal(0.5, 0.15, (64, 9, 5, 4))
 

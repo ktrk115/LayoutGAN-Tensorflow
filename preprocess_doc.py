@@ -28,9 +28,10 @@ for split in splits:
         for i, ann in enumerate(coco.loadAnns(ann_ids)):
             # bbox
             x1, y1, width, height = ann['bbox']
-            x2 = (x1 + width) / W
-            y2 = (y1 + height) / H
-            bbox = [x1 / W, y1 / H, x2, y2]
+            xc = (x1 + width) / 2
+            yc = (y1 + height) / 2
+            bbox = [xc / W, yc / H,
+                    width / W, height / H]
 
             # cls_prob
             index = ann['category_id'] - 1
