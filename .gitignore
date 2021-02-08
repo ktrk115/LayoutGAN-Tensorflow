@@ -3,6 +3,8 @@
 .DS_Store
 
 publaynet
+semantic_annotations
 checkpoint/*
 samples/*
+samples_mobile/*
 data/*.npy

@@ -8,7 +8,7 @@ import tensorflow as tf
 flags = tf.app.flags
 flags.DEFINE_integer("epoch", 50, "Epoch to train [25]")
 flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
-flags.DEFINE_string("dataset", "mnist", "The name of dataset [mnist, doc, clipart, tangram]")
+flags.DEFINE_string("dataset", "mnist", "The name of dataset [mnist, doc, clipart, tangram, mobile]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
 flags.DEFINE_boolean("train", False, "True for training, False for testing [False]")
