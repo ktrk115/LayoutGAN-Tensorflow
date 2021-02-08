@@ -1,6 +1,5 @@
 import numpy as np
 from pycocotools.coco import COCO
-from IPython import embed
 
 # >>> coco.loadCats(coco.getCatIds())
 # [{u'id': 1, u'name': u'text', u'supercategory': u''},
@@ -28,8 +27,8 @@ for split in splits:
         for i, ann in enumerate(coco.loadAnns(ann_ids)):
             # bbox
             x1, y1, width, height = ann['bbox']
-            xc = (x1 + width) / 2
-            yc = (y1 + height) / 2
+            xc = x1 + width / 2
+            yc = y1 + height / 2
             bbox = [xc / W, yc / H,
                     width / W, height / H]
 

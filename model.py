@@ -96,6 +96,13 @@ class LAYOUTGAN(object):
     sample_inputs = np.array(sample).astype(np.float32)
     # sample_inputs = sample_inputs * 28.0 / 27.0 
 
+    # save partial training data
+    samples = self.sess.run(layout_bbox(self.inputs, 60, 40),
+                            feed_dict={self.inputs: sample_inputs})
+    size = image_manifold_size(samples.shape[0])
+    path = './{}/sample.jpg'.format(config.sample_dir)
+    save_npy_img(samples, size, path)
+
     sample_z = np.random.normal(0.5, 0.15, (64, 9, 5, 4))
   
     counter = 1
@@ -130,11 +137,11 @@ class LAYOUTGAN(object):
         errG = self.g_loss.eval({self.inputs: batch_images, self.z: batch_z})
 
         counter += 1
-        if np.mod(counter, 10) == 0: 
+        if np.mod(counter, 50) == 0: 
           print("Epoch: [%2d] [%4d/%4d] time: %4.4f, lr:%.8f, d_loss: %.4f, g_loss: %.4f" \
             % (epoch, idx, batch_idxs, time.time()-start_time, lr.eval(), errD_fake+errD_real, errG))
 
-        if np.mod(counter, 200) == 1:
+        if np.mod(counter, 500) == 1:
           samples, d_loss, g_loss = self.sess.run([self.G_sample, self.d_loss, self.g_loss],
             feed_dict={self.z: sample_z, self.inputs: sample_inputs})
 
