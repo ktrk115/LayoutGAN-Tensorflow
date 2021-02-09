@@ -11,6 +11,7 @@ flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
 flags.DEFINE_string("dataset", "mnist", "The name of dataset [mnist, doc, clipart, tangram, mobile]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
+flags.DEFINE_string("model_name", None, "Directory name to save the model and summaries.")
 flags.DEFINE_boolean("train", False, "True for training, False for testing [False]")
 FLAGS = flags.FLAGS
 
@@ -32,6 +33,7 @@ def main(_):
       sample_num=FLAGS.batch_size,
       dataset_name=FLAGS.dataset,
       checkpoint_dir=FLAGS.checkpoint_dir,
+      model_name=FLAGS.model_name,
       sample_dir=FLAGS.sample_dir)
 
     show_all_variables()

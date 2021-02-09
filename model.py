@@ -11,10 +11,14 @@ import random
 from ops import *
 from utils import *
 
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+
+if 'CUDA_VISIBLE_DEVICES' not in os.environ.keys():
+  os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 
 class LAYOUTGAN(object):
-  def __init__(self, sess, batch_size=64, sample_num=64, dataset_name='default', checkpoint_dir=None, sample_dir=None):
+  def __init__(self, sess, batch_size=64, sample_num=64, dataset_name='default',
+               checkpoint_dir=None, sample_dir=None, model_name=None):
     """
     Args:
       sess: TensorFlow session
@@ -26,6 +30,13 @@ class LAYOUTGAN(object):
     self.sample_num = sample_num
     self.dataset_name = dataset_name
     self.checkpoint_dir = checkpoint_dir
+    if model_name is None:
+      self.model_dir = "{}_{}".format(dataset_name, batch_size)
+    else:
+      self.model_dir = model_name
+    
+    tb_dir = os.path.join(checkpoint_dir, self.model_dir)
+    self.writer = tf.summary.FileWriter(tb_dir)
 
     self.d_bn0 = batch_norm(name='d_bn0')
     self.d_bn1 = batch_norm(name='d_bn1')
@@ -78,11 +89,18 @@ class LAYOUTGAN(object):
     self.g_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="generator")
 
     self.saver = tf.train.Saver()
+    self.summ = tf.summary.merge([
+      tf.summary.scalar('d_loss_real', self.d_loss_real),
+      tf.summary.scalar('d_loss_fake', self.d_loss_fake),
+      tf.summary.scalar('d_loss', self.d_loss),
+      tf.summary.scalar('g_loss', self.g_loss),
+    ])
 
   def train(self, config):
     global_step = tf.Variable(0, trainable=False)
     epoch_step = len(self.data_pre) // config.batch_size    
     lr = tf.train.exponential_decay(0.00001, global_step, 20*epoch_step, 0.1, staircase=True)
+    lr_ = tf.summary.scalar('learning_rate', lr)
 
     d_optim = tf.train.AdamOptimizer(lr, beta1=0.9).minimize(self.d_loss, var_list=self.d_vars, global_step=global_step)
     g_optim = tf.train.AdamOptimizer(lr, beta1=0.9).minimize(self.g_loss, var_list=self.g_vars)
@@ -97,10 +115,13 @@ class LAYOUTGAN(object):
     # sample_inputs = sample_inputs * 28.0 / 27.0 
 
     # save partial training data
+    sample_dir = os.path.join(config.sample_dir, self.model_dir)
+    if not os.path.exists(sample_dir):
+      os.makedirs(sample_dir)
     samples = self.sess.run(layout_bbox(self.inputs, 60, 40),
                             feed_dict={self.inputs: sample_inputs})
     size = image_manifold_size(samples.shape[0])
-    path = './{}/sample.jpg'.format(config.sample_dir)
+    path = './{}/sample.jpg'.format(sample_dir)
     save_npy_img(samples, size, path)
 
     sample_z = np.random.normal(0.5, 0.15, (64, 9, 5, 4))
@@ -132,13 +153,15 @@ class LAYOUTGAN(object):
         _ = self.sess.run([g_optim], feed_dict={ self.inputs: batch_images, self.z: batch_z})
         _ = self.sess.run([g_optim], feed_dict={ self.inputs: batch_images, self.z: batch_z})
 
-        errD_fake = self.d_loss_fake.eval({ self.z: batch_z})
-        errD_real = self.d_loss_real.eval({ self.inputs: batch_images})
-        errG = self.g_loss.eval({self.inputs: batch_images, self.z: batch_z})
+        fetches = [self.d_loss_fake, self.d_loss_real, self.g_loss, self.summ]
+        errD_fake, errD_real, errG, summ = \
+          self.sess.run(fetches, feed_dict={ self.inputs: batch_images, self.z: batch_z})
+        self.writer.add_summary(summ, counter)
+        self.writer.add_summary(lr_.eval(), counter)
 
         counter += 1
         if np.mod(counter, 50) == 0: 
-          print("Epoch: [%2d] [%4d/%4d] time: %4.4f, lr:%.8f, d_loss: %.4f, g_loss: %.4f" \
+          print("Epoch: [%2d] [%4d/%4d] time: %4.4f, lr:%.3E, d_loss: %.4f, g_loss: %.4f" \
             % (epoch, idx, batch_idxs, time.time()-start_time, lr.eval(), errD_fake+errD_real, errG))
 
         if np.mod(counter, 500) == 1:
@@ -146,7 +169,7 @@ class LAYOUTGAN(object):
             feed_dict={self.z: sample_z, self.inputs: sample_inputs})
 
           size = image_manifold_size(samples.shape[0])
-          path = './{}/train_{:02d}_{:04d}.jpg'.format(config.sample_dir, epoch, idx)
+          path = './{}/train_{:02d}_{:04d}.jpg'.format(sample_dir, epoch, idx)
           save_npy_img(samples, size, path)
 
           print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss)) 
@@ -248,11 +271,6 @@ class LAYOUTGAN(object):
       layout = layout_bbox(final_pred, 60, 40, name='layout')
 
       return layout
-
-
-  @property
-  def model_dir(self):
-    return "{}_{}".format(self.dataset_name, self.batch_size)
       
   def save(self, checkpoint_dir, step):
     model_name = "LAYOUTGAN.model"
