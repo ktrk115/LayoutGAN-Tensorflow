@@ -55,6 +55,10 @@ class LAYOUTGAN(object):
     self.g_bn_x1 = batch_norm(name='g_bn_x1')
     self.g_bn_x2 = batch_norm(name='g_bn_x2')
     self.g_bn_x3 = batch_norm(name='g_bn_x3')
+    self.g_bn_x4 = batch_norm(name='g_bn_x4')
+    self.g_bn_x5 = batch_norm(name='g_bn_x5')
+    self.g_bn_x6 = batch_norm(name='g_bn_x6')
+    self.g_bn_x7 = batch_norm(name='g_bn_x7')
 
     npy_path = './data/' + self.dataset_name + '_train.npy'
     self.data_pre = np.load(npy_path)
@@ -233,6 +237,8 @@ class LAYOUTGAN(object):
 
       # For bbox layout generation
       # May add more self-attention refinement steps
+      gnet = tf.nn.relu(self.g_bn_x5( tf.add(gnet, self.g_bn_x4(relation_nonLocal(gnet, name='g_non4')))))
+      gnet = tf.nn.relu(self.g_bn_x7( tf.add(gnet, self.g_bn_x6(relation_nonLocal(gnet, name='g_non6')))))
 
       bbox_pred = conv2d(gnet, 4, k_h=1, k_w=1, d_h=1, d_w=1, name='bbox_pred')
       bbox_pred = tf.sigmoid(tf.reshape(bbox_pred, [-1, 9, 4]))
@@ -266,6 +272,9 @@ class LAYOUTGAN(object):
       h1_2 = tf.nn.relu(self.g_bn1_2(conv2d(h1_1, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h1_2'), train=False))
       h1_3 = self.g_bn1_3(conv2d(h1_2, 1024, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h1_3'), train=False)
       gnet = tf.nn.relu(tf.add(h1_0, h1_3))
+
+      gnet = tf.nn.relu(self.g_bn_x5( tf.add(gnet, self.g_bn_x4(relation_nonLocal(gnet, name='g_non4'), train=False)), train=False))
+      gnet = tf.nn.relu(self.g_bn_x7( tf.add(gnet, self.g_bn_x6(relation_nonLocal(gnet, name='g_non6'), train=False)), train=False))
 
       bbox_pred = conv2d(gnet, 4, k_h=1, k_w=1, d_h=1, d_w=1, name='bbox_pred')
       bbox_pred = tf.sigmoid(tf.reshape(bbox_pred, [-1, 9, 4]))
