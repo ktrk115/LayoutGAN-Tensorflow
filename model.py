@@ -67,7 +67,7 @@ class LAYOUTGAN(object):
   def build_model(self):
 
     self.inputs = tf.placeholder(tf.float32, [self.batch_size, 9, 9], name='real_images')
-    self.z = tf.placeholder(tf.float32, [64, 9, 5, 4], name='z')
+    self.z = tf.placeholder(tf.float32, [self.batch_size, 9, 9], name='z')
 
     self.G = self.generator(self.z)
     self.D, self.D_logits = self.discriminator(self.inputs, reuse=False)
@@ -124,8 +124,11 @@ class LAYOUTGAN(object):
     path = './{}/sample.jpg'.format(sample_dir)
     save_npy_img(samples, size, path)
 
-    sample_z = np.random.normal(0.5, 0.15, (64, 9, 5, 4))
-  
+    # sample_z = np.random.normal(0.5, 0.15, (self.batch_size, 128, 2))
+    sample_z_bbox = np.random.normal(0.5, 0.15, (self.batch_size, 9, 4))
+    sample_z_cls = np.identity(5)[np.random.randint(5, size=(self.batch_size, 9))]
+    sample_z = np.concatenate([sample_z_bbox, sample_z_cls], axis=-1)
+
     counter = 1
     start_time = time.time()
     could_load, checkpoint_counter = self.load(self.checkpoint_dir)
@@ -144,7 +147,10 @@ class LAYOUTGAN(object):
         batch_images = np.array(batch).astype(np.float32)
         # batch_images = batch_images * 28.0 / 27.0 
 
-        batch_z = np.random.normal(0.5, 0.15, (64, 9, 5, 4))
+        # batch_z = np.random.normal(0.5, 0.15, (self.batch_size, 128, 2))
+        batch_z_bbox = np.random.normal(0.5, 0.15, (self.batch_size, 9, 4))
+        batch_z_cls = np.identity(5)[np.random.randint(5, size=(self.batch_size, 9))]
+        batch_z = np.concatenate([batch_z_bbox, batch_z_cls], axis=-1)
 
         # Update D network
         _ = self.sess.run([d_optim], feed_dict={ self.inputs: batch_images, self.z: batch_z})
@@ -198,7 +204,7 @@ class LAYOUTGAN(object):
 
   def generator(self, z):
     with tf.variable_scope("generator") as scope:
-      # gnet = tf.reshape(z, [64, 128, 1, 2])
+      # gnet = tf.reshape(z, [self.batch_size, 128, 1, 2])
       # h0_0 = self.g_bn0_0(conv2d(gnet, 1024, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_0'))
       # h0_1 = tf.nn.relu(self.g_bn0_1(conv2d(gnet, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_1')))
       # h0_2 = tf.nn.relu(self.g_bn0_2(conv2d(h0_1, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_2')))
@@ -206,15 +212,16 @@ class LAYOUTGAN(object):
       # gnet = tf.nn.relu(tf.add(h0_0, h0_3))
 
       # For bbox layout generation
-      gnet = tf.reshape(z, [64, 9, 5, 4])
+      # gnet = tf.reshape(z, [self.batch_size, 9, 5, 4])
+      gnet = tf.reshape(z, [self.batch_size, 9, 1, 4 + 5])
       h0_0 = self.g_bn0_0(conv2d(gnet, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_0'))
       h0_1 = tf.nn.relu(self.g_bn0_1(conv2d(gnet, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_1')))
       h0_2 = tf.nn.relu(self.g_bn0_2(conv2d(h0_1, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_2')))
       h0_3 = self.g_bn0_3(conv2d(h0_2, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_3'))
       gnet = tf.nn.relu(tf.add(h0_0, h0_3))
-      gnet = tf.reshape(gnet, [64, 9, 1, 5*256])
+      gnet = tf.reshape(gnet, [self.batch_size, 9, 1, 256])
 
-      # gnet = tf.reshape(gnet, [64, 128, 1, 1024])
+      # gnet = tf.reshape(gnet, [self.batch_size, 128, 1, 1024])
       gnet = tf.nn.relu(self.g_bn_x1( tf.add(gnet, self.g_bn_x0(relation_nonLocal(gnet, name='g_non0')))))
       gnet = tf.nn.relu(self.g_bn_x3( tf.add(gnet, self.g_bn_x2(relation_nonLocal(gnet, name='g_non2')))))
 
@@ -242,15 +249,15 @@ class LAYOUTGAN(object):
   def sampler(self, z):
     with tf.variable_scope("generator") as scope:
       scope.reuse_variables()
-      gnet = tf.reshape(z, [64, 9, 5, 4])
-      h0_0 = self.g_bn0_0(conv2d(gnet, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_0'))
-      h0_1 = tf.nn.relu(self.g_bn0_1(conv2d(gnet, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_1')))
-      h0_2 = tf.nn.relu(self.g_bn0_2(conv2d(h0_1, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_2')))
-      h0_3 = self.g_bn0_3(conv2d(h0_2, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_3'))
+      gnet = tf.reshape(z, [self.batch_size, 9, 1, 4 + 5])
+      h0_0 = self.g_bn0_0(conv2d(gnet, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_0'), train=False)
+      h0_1 = tf.nn.relu(self.g_bn0_1(conv2d(gnet, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_1'), train=False))
+      h0_2 = tf.nn.relu(self.g_bn0_2(conv2d(h0_1, 64, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_2'), train=False))
+      h0_3 = self.g_bn0_3(conv2d(h0_2, 256, k_h=1, k_w=1, d_h=1, d_w=1, name='g_h0_3'), train=False)
       gnet = tf.nn.relu(tf.add(h0_0, h0_3))
-      gnet = tf.reshape(gnet, [64, 9, 1, 5*256])
+      gnet = tf.reshape(gnet, [self.batch_size, 9, 1, 256])
 
-      # gnet = tf.reshape(gnet, [64, 128, 1, 1024])
+      # gnet = tf.reshape(gnet, [self.batch_size, 128, 1, 1024])
       gnet = tf.nn.relu(self.g_bn_x1( tf.add(gnet, self.g_bn_x0(relation_nonLocal(gnet, name='g_non0'), train=False)), train=False))
       gnet = tf.nn.relu(self.g_bn_x3( tf.add(gnet, self.g_bn_x2(relation_nonLocal(gnet, name='g_non2'), train=False)), train=False))
 
