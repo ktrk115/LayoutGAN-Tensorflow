@@ -1,4 +1,4 @@
-## LayoutGAN for bbox experiments (Unofficial)
+## LayoutGAN for bbox experiments (unofficial)
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@
 2. Run `python preprocess_doc.py` for preprocessing dataset.
 3. Run `bash ./experiments/scripts/train_doc.sh` to train a model.
 
-## Mobile App layout generation
+## Mobile app layout generation (WIP)
 1. Use [Rico dataset](http://interactionmining.org/rico). Download `semantic_annotations.zip` and decompress it.
 2. Run `python preprocess_mobile.py` for preprocessing dataset.
 3. Run `bash ./experiments/scripts/train_mobile.sh` to train a model.
